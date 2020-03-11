@@ -1,2 +1,2 @@
-# Bangabandhu-Sheikh-Mujibur-Rahman-s-7th-March-Speec-Exploratory-Text-Analysis
+# Bangabandhu-Sheikh-Mujibur-Rahman-s-7th-March-Speech-Exploratory-Text-Analysis
 I have attempted to analyze the historical speech delivered by the great leader of Bangladesh Bangabandhu Sheikh Mujibur Rahman's Speech that he delivered on 7th of March, 1971. That speech turned the nation into a tidal surge and subsequently has given birth to Bangladesh. I have tried to explore the speech in a descriptive fashion using Rstudio.
