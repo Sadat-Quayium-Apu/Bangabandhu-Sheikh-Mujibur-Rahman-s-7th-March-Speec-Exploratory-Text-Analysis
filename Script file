@@ -1,0 +1,155 @@
+library(tidyverse)
+library(tidytext)
+library(stringr)
+library(sentimentr)
+library(ggthemes)
+library(tm)
+library(wordcloud)
+library(wordcloud2)
+
+
+#...........................Loading data................................................................
+speech<- read.csv("D:/R/Text EDA/7th march final.csv", header = TRUE)
+speech1<-speech
+speech1$sentence<- as.character(speech1$sentence)
+speech1<-speech1 %>% unnest_tokens(word, sentence)%>%  count(word, sort = TRUE)%>%
+  anti_join(stop_words) 
+
+#...........................................Word Cloud...........................................................
+set.seed(71)
+wordcloud2(speech1, size=1, shape='oval',rotateRatio = 0.5,minSize = 1)
+
+#..........................................Word Count >5.......................................................................
+speech2 <- speech1 %>% filter(n > 5) %>% 
+  mutate(word = fct_reorder(word, desc(-n))) %>%
+  ggplot(aes(word, n)) +
+  geom_col(aes(fill=word))+
+  xlab(NULL) +
+  coord_flip()+
+  scale_fill_viridis_d()+theme(legend.position = "none")+ggtitle("Word Counts (>5)")+
+  labs(y = "",x = NULL)
+
+speech2
+
+#........................................2 words/ bigrams..........................................................................
+
+w2 <- speech %>% unnest_tokens(word,sentence, token = "ngrams", n = 2)
+
+w2<- w2 %>% separate(word,c("word1", "word2"), sep = " ")
+
+w2<-w2 %>%  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) %>% 
+  count(word1,word2, sort = TRUE)%>%
+  unite(speech, word1, word2, sep = " ")
+w2
+
+w3<- w2 %>% filter(n > 1) %>% arrange(desc(-n))
+
+
+ggplot(w3,aes(x=reorder(speech, n), n))+
+  geom_col(aes(fill=n))+
+  xlab(NULL) +
+  coord_flip()+
+  scale_fill_viridis_c()+theme(legend.position = "none")
+
+
+#............................................Bing sentiment +/-...........................................................
+bing<- get_sentiments("bing")
+
+speech3 <- inner_join(speech1,bing, by = c("word" = "word")) %>%   # 25 positive , 42 negative
+  count(word, sentiment, sort = TRUE)
+speech3
+fct_count(speech3$sentiment)# negative 43, positive 25
+
+ggplot(speech3, aes(word, sentiment))+
+  geom_bin2d(aes(fill=sentiment))+scale_fill_manual(values = c("#F26549","#1F4B59"))+labs(y = "",x = NULL)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+theme(legend.position = "none")+ggtitle("Polarity (+/-)") 
+
+
+#.....................................Afinn Sentiment Scores............................................................
+afinn<- get_sentiments("afinn")
+
+speech5 <- inner_join(speech1,afinn, by = c("word" = "word")) %>%   # 25 positive , 42 negative
+  count(word, value, sort = TRUE)
+speech5
+
+ggplot(speech5, aes(x=reorder(word, value), value))+
+  geom_col(aes(fill=value))+scale_fill_viridis_c()+
+  labs(y = "",x = NULL)+
+  theme(axis.text.x = element_text(hjust = 1))+ 
+  theme(legend.position = "none")+ggtitle("Sentiment Score")+coord_flip()
+
+
+#........................ NRC Development over time sentiment/sentence............................................................................
+
+nrc<- get_sentiments("nrc")
+speech$sentence<- as.character(speech$sentence)
+gl<-get_nrc_sentiment(speech$sentence) %>% mutate(id= c(1:128))
+
+gl[5,]
+speech[5,]
+
+cg<- gl %>% mutate(pc=cumsum(positive)) %>% mutate(nc=cumsum(negative)) %>% 
+  mutate(ac=cumsum(anger)) %>% mutate(dc=cumsum(disgust)) %>% mutate(fc=cumsum(fear)) %>% 
+  mutate(jc=cumsum(joy)) %>% mutate(sc=cumsum(sadness)) %>% mutate(spc=cumsum(surprise)) %>% 
+  mutate(tc=cumsum(trust)) %>% mutate(anc=cumsum(anticipation))
+
+ggplot(cg,aes(id))+
+  geom_line(aes(y=pc), color="#1A237E", size=1)+
+  geom_line(aes(y=anc), color="#3F51B5",size=1)+
+  geom_line(aes(y=tc), color="#2196F3", size=1)+
+  geom_line(aes(y=jc), color="#03A9F4", size=1)+
+  geom_line(aes(y=spc), color="#4CAF50",size=1)+
+  geom_line(aes(y=sc), color="#8BC34A", size=1)+
+  geom_line(aes(y=ac), color="#FFEB3B", size=1)+
+  geom_line(aes(y=fc), color="#FFC107", size=1)+
+  geom_line(aes(y=dc), color="#FF9800", size=1)+
+  geom_line(aes(y=nc), color="#FF5722", size=1)+
+  labs(y = "",x = "")+
+  ggtitle("Cumulative Freq over Time")
+
+#.......................................NRC Emotions heat map......................................................................
+
+speech4 <- inner_join(speech1,nrc, by = c("word" = "word")) %>%
+  count(word, sentiment, sort = TRUE)
+
+
+ggplot(speech4, aes(word, sentiment)) +
+  geom_bin2d(aes(fill= sentiment))+scale_fill_brewer(palette="Spectral")+
+  labs(y = "",x = NULL)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  theme(legend.position = "none")+ggtitle("Emotions")
+
+
+#.......................................sentence Level Sentiment......................................
+
+ml<- speech
+ml %>% 
+  sentimentr::get_sentences() %>% 
+  sentimentr::sentiment() %>% 
+filter(sentence >1 ) -> bounded_sentences 
+
+summary(bounded_sentences$sentiment)
+
+bounded_sentences %>% filter(between(sentiment,-1,1)) ->  bounded_sentences
+dat <- with(density(bounded_sentences$sentiment), data.frame(x, y))
+
+
+ggplot(dat, aes(x = x, y = y)) +
+  geom_line() +
+  geom_area(mapping = aes(x = ifelse(x >=0 & x<=1 , x, 0)), fill = "#1F4B59",alpha=.9) +
+  geom_area(mapping = aes(x = ifelse(x <=0 & x>=-1 , x, 0)), fill = "#F26549") +
+  scale_y_continuous(limits = c(0,7.5))+
+  labs(x = "Sentiment", 
+       y = "", 
+       title = "The Distribution of Sentiment at sentence level")+
+  theme(plot.title = element_text(hjust = 0.5), 
+        axis.text.y=element_blank())
+
+h<- ml %>% 
+  sentimentr::get_sentences() %>% 
+  sentimentr::sentiment()
+ggplot(h, aes(element_id, sentiment))+geom_step(aes(color=sentiment))+scale_color_viridis_c()+
+  theme(legend.position = "none")+labs(y = "",x = NULL)+ggtitle("Seniment over time")
+
+ggplot(h,aes(word_count))+geom_bar(aes(fill=word_count))+scale_fill_viridis_c()
