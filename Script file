@@ -5,8 +5,13 @@ library(sentimentr)
 library(ggthemes)
 library(tm)
 library(wordcloud)
+library(spacyr)
 library(wordcloud2)
 
+
+#.............................For creating and saving data file.........................................
+sn <- tibble(text = v) %>% unnest_tokens(sentence, text, token = "sentences")
+write.csv(sn,"D:/R/Text EDA/7th march final.csv",row.names = FALSE)
 
 #...........................Loading data................................................................
 speech<- read.csv("D:/R/Text EDA/7th march final.csv", header = TRUE)
@@ -71,13 +76,18 @@ afinn<- get_sentiments("afinn")
 
 speech5 <- inner_join(speech1,afinn, by = c("word" = "word")) %>%   # 25 positive , 42 negative
   count(word, value, sort = TRUE)
-speech5
 
-ggplot(speech5, aes(x=reorder(word, value), value))+
-  geom_col(aes(fill=value))+scale_fill_viridis_c()+
-  labs(y = "",x = NULL)+
-  theme(axis.text.x = element_text(hjust = 1))+ 
-  theme(legend.position = "none")+ggtitle("Sentiment Score")+coord_flip()
+speech5 <- mutate(speech5, Score = ifelse(value > 0, "Positive", "Negative"))
+
+
+ggplot(speech5, aes(x = reorder(word, value), value, fill = Score)) +
+  geom_col() +
+  scale_fill_manual(values = c("#F26549","#1F4B59"))+
+  labs(y = "", x = NULL) +
+  theme(axis.text.x = element_text(hjust = 1)) +
+  theme(legend.position = "none") +
+  ggtitle("Sentiment Score") +
+  coord_flip()
 
 
 #........................ NRC Development over time sentiment/sentence............................................................................
@@ -149,7 +159,14 @@ ggplot(dat, aes(x = x, y = y)) +
 h<- ml %>% 
   sentimentr::get_sentences() %>% 
   sentimentr::sentiment()
-ggplot(h, aes(element_id, sentiment))+geom_step(aes(color=sentiment))+scale_color_viridis_c()+
+
+h <- mutate(h, Score = ifelse(sentiment > 0, "Positive", "Negative"))
+
+ggplot(h, aes(element_id, sentiment))+geom_step(aes(color=sentiment))+
   theme(legend.position = "none")+labs(y = "",x = NULL)+ggtitle("Seniment over time")
+ 
+
+str(h)
+speech[4,]
 
 ggplot(h,aes(word_count))+geom_bar(aes(fill=word_count))+scale_fill_viridis_c()
